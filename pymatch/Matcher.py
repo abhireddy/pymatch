@@ -145,7 +145,7 @@ class Matcher:
             scores += m.predict(self.X[m.params.index])
         self.data['scores'] = scores/self.nmodels
 
-    def match(self, threshold=0.001, nmatches=1, method='min', max_rand=10):
+    def match(self, threshold=0.001, nmatches=1, method='min', max_rand=10, with_replacement=True):
         """
         Finds suitable match(es) for each record in the minority
         dataset, if one exists. Records are exlcuded from the final
@@ -199,6 +199,9 @@ class Matcher:
             chosen = np.random.choice(matches.index, min(select, nmatches), replace=False)
             result.extend([test_scores.index[i]] + list(chosen))
             match_ids.extend([i] * (len(chosen)+1))
+            # if sampling without replacement, drop any chosen observations from the control set
+            if with_replacement == False:
+                ctrl_scores.drop(list(chosen), inplace=True)
         self.matched_data = self.data.loc[result]
         self.matched_data['match_id'] = match_ids
         self.matched_data['record_id'] = self.matched_data.index
@@ -521,6 +524,8 @@ class Matcher:
         self.matched_data = fm
 
     @staticmethod
+    # fixed to avoid having to downgrade pandas
+    # see https://github.com/benmiroglio/pymatch/issues/23
     def _scores_to_accuracy(m, X, y):
-        preds = [[1.0 if i >= .5 else 0.0 for i in m.predict(X)]]
-        return (y == preds).sum() * 1.0 / len(y)
+        preds = [1.0 if i >= .5 else 0.0 for i in m.predict(X)]
+        return (y.to_numpy().T == preds).sum() * 1.0 / len(y)
